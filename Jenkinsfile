@@ -11,28 +11,32 @@ pipeline {
                     def port = blueRunning ? "8082" : "8081"
                     def old = blueRunning ? "app-v1" : "app-v2"
 
-                    bat "docker stop ${target} || ver > nul"
-                    bat "docker rm ${target} || ver > nul"
-                    bat "docker run -d --name ${target} -p ${port}:80 shopping-app:latest"
-                    
-                    echo "Waiting for container to stabilize..."
-                    sleep 15
-                    
-                    // SMART CHECK: Does the page contain the word 'div' or 'script'? 
-                    // Every React app HAS these. If it's a 502 error, it won't have them.
-                    def response = bat(script: "curl -s http://localhost:${port}", returnStdout: true).toLowerCase()
-                    
-                    if (response.contains("div") || response.contains("script")) {
-                        echo "HEALTH CHECK PASSED: App is serving HTML content!"
-                        echo "SUCCESS: Switching traffic to ${target}."
-                        bat "docker stop ${old} || ver > nul"
-                        bat "docker rm ${old} || ver > nul"
-                    } else {
-                        echo "FAILURE: New version returned no valid HTML. Rolling back."
-                        bat "docker stop ${target} || ver > nul"
-                        bat "docker rm ${target} || ver > nul"
-                        error "Deployment failed: Old version preserved."
-                    }
+                   // ... (start of your script remains the same)
+
+bat "docker run -d --name ${target} -p ${port}:80 shopping-app:latest"
+
+echo "DEEP SCAN: Checking if UI components rendered in assets..."
+def isHealthy = false
+
+// We look inside the container's web folder for the word 'Special'
+// If you comment out the code, this word will not be indexed correctly in the assets
+def check = bat(script: "docker exec ${target} grep -r \"Special\" /usr/share/nginx/html/assets/", returnStatus: true)
+
+if (check == 0) {
+    echo "HEALTH CHECK PASSED: Component text found."
+    isHealthy = true
+}
+
+if (isHealthy) {
+    echo "SUCCESS: Switching traffic."
+    bat "docker stop ${old} || ver > nul"
+    bat "docker rm ${old} || ver > nul"
+} else {
+    echo "ROLLBACK: New version is a BLANK PAGE. Keeping old version."
+    bat "docker stop ${target} || ver > nul"
+    bat "docker rm ${target} || ver > nul"
+    error "Deployment blocked to prevent blank page!"
+}
                 }
             }
         }
