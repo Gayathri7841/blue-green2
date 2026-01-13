@@ -1,5 +1,5 @@
 import React from 'react';
-/*import heroimage from '../assets/heroimage.png';*/
+import heroimage from '../assets/heroimage.png';
 const Hero = () => {
   return (
     <div className="flex flex-col sm:flex-row border border-gray-400">
