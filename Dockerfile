@@ -2,20 +2,23 @@
 FROM node:18-alpine AS build
 WORKDIR /app
 
-# This will find package.json whether it's in the root OR the frontend folder
-COPY **/package*.json ./
+# Copy the package files from the frontend folder
+COPY frontend/package.json frontend/package-lock.json ./
+
+# Install dependencies
 RUN npm install
 
-# This copies everything from your repo into the container
-COPY . .
+# Copy the rest of the frontend source code
+COPY frontend/ .
 
-# We move into the frontend folder (if it exists) to run the build
-RUN if [ -d "frontend" ]; then cd frontend && npm run build && cp -r dist /app/dist; else npm run build; fi
+# Run the build command
+RUN npm run build
 
 # Production stage
 FROM nginx:stable-alpine
-# Copy from the /app/dist folder we created above
+# Vite/React builds usually go to the 'dist' folder
 COPY --from=build /app/dist /usr/share/nginx/html
+# Copy your nginx.conf from the root of your repo
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
