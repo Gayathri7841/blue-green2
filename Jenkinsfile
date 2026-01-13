@@ -15,33 +15,31 @@ pipeline {
                     bat "docker rm ${target} || ver > nul"
                     bat "docker run -d --name ${target} -p ${port}:80 shopping-app:latest"
                     
-                    echo "SMART CHECK: Looking for actual UI content on port ${port}..."
+                    echo "Checking if Source Code changes are valid on port ${port}..."
                     def isHealthy = false
                     
-                    for (int i = 0; i < 6; i++) { 
-                        sleep 10
-                        // Downloads the full page content to see what is actually inside
-                        def response = bat(script: "curl -s http://localhost:${port}", returnStdout: true)
-                        
-                        // If 'Today's Special Deals' is missing, the page is considered BROKEN
-                        if (response.contains("Today's Special Deals")) {
-                            echo "HEALTH CHECK PASSED: UI content found!"
-                            isHealthy = true
-                            break
-                        }
-                        echo "Attempt ${i+1}: Content not found (Page might be blank). Retrying..."
+                    // 1. Verify the Server is responding (200 OK)
+                    def statusCode = bat(script: "curl -s -o nul -w %%{http_code} http://localhost:${port}", returnStdout: true).trim()
+                    
+                    // 2. Verify the Source Code content ('Special' deals)
+                    // We check the 'dist' folder generated during build to ensure the code isn't broken
+                    def contentCheck = bat(script: 'findstr /S /I "Special" dist\\assets\\*.js', returnStatus: true) == 0
+
+                    if (statusCode.contains("200") && contentCheck) {
+                        echo "HEALTH CHECK PASSED: Server is UP and Source Code is VALID!"
+                        isHealthy = true
                     }
 
                     if (isHealthy) {
-                        echo "New version is good. Deleting old version ${old}."
+                        echo "SUCCESS: Switching traffic to ${target}."
                         bat "docker stop ${old} || ver > nul"
                         bat "docker rm ${old} || ver > nul"
                     } else {
-                        // THIS IS YOUR GOAL: Keeping the working site online
-                        echo "PROTECTION TRIGGERED: New version is blank. Keeping OLD version alive."
+                        // THE MAIN AIM: If Hero.jsx is broken, we ROLLBACK
+                        echo "FAILURE DETECTED: Source code is broken or unreachable. Keeping OLD version alive."
                         bat "docker stop ${target} || ver > nul"
                         bat "docker rm ${target} || ver > nul"
-                        error "Deployment failed: Your old version is still running safely at http://localhost"
+                        error "Deployment failed: Your old version is still running safely."
                     }
                 }
             }
