@@ -6,25 +6,25 @@ pipeline {
         }
         stage('Build Image') {
             steps {
-                sh 'docker build -t shopping-app:latest .'
+                // Use 'bat' for Windows instead of 'sh'
+                bat 'docker build -t shopping-app:latest .'
             }
         }
         stage('Blue-Green Deploy') {
             steps {
                 script {
-                    def running = sh(script: "docker ps -q -f name=app-v1", returnStatus: true)
-                    def targetName = (running == 0) ? "app-v2" : "app-v1"
-                    def targetPort = (running == 0) ? "8082" : "8081"
-                    def oldName    = (running == 0) ? "app-v1" : "app-v2"
+                    // This logic checks which port is free and deploys there
+                    def blueRunning = bat(script: 'docker ps -q -f "name=app-v1"', returnStatus: true) == 0
+                    def target = blueRunning ? "app-v2" : "app-v1"
+                    def port = blueRunning ? "8082" : "8081"
+                    def old = blueRunning ? "app-v1" : "app-v2"
 
-                    sh "docker run -d --name ${targetName} -p ${targetPort}:80 shopping-app:latest"
+                    bat "docker run -d --name ${target} -p ${port}:80 shopping-app:latest"
+                    echo "Deployed to ${target} on port ${port}"
                     
-                    echo "Checking health..."
-                    sleep 10
-                    
-                    // Cleanup old version
-                    sh "docker stop ${oldName} || true"
-                    sh "docker rm ${oldName} || true"
+                    // In a real scenario, you'd test health here before stopping 'old'
+                    bat "docker stop ${old} || ver > nul"
+                    bat "docker rm ${old} || ver > nul"
                 }
             }
         }
