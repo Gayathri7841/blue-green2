@@ -24,7 +24,7 @@ pipeline {
                         def response = bat(script: "curl -s http://localhost:${port}", returnStdout: true).toLowerCase()
                         
                         // IF the word 'special' is found, the UI is NOT blank
-                        if (response.contains("special")) {
+                        if (response.contains("Today's Special Deals")) {
                             echo "HEALTH CHECK PASSED: App is rendering correctly!"
                             isHealthy = true
                             break
