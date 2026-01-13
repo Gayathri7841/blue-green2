@@ -15,21 +15,21 @@ pipeline {
                     bat "docker rm ${target} || ver > nul"
                     bat "docker run -d --name ${target} -p ${port}:80 shopping-app:latest"
                     
-                    echo "Checking for 'Special' text on port ${port}..."
+                    echo "SMART CHECK: Looking for actual UI content on port ${port}..."
                     def isHealthy = false
                     
                     for (int i = 0; i < 6; i++) { 
                         sleep 10
-                        // Downloads the HTML content and makes it lowercase
-                        def response = bat(script: "curl -s http://localhost:${port}", returnStdout: true).toLowerCase()
+                        // Downloads the full page content to see what is actually inside
+                        def response = bat(script: "curl -s http://localhost:${port}", returnStdout: true)
                         
-                        // IF the word 'special' is found, the UI is NOT blank
+                        // If 'Today's Special Deals' is missing, the page is considered BROKEN
                         if (response.contains("Today's Special Deals")) {
-                            echo "HEALTH CHECK PASSED: App is rendering correctly!"
+                            echo "HEALTH CHECK PASSED: UI content found!"
                             isHealthy = true
                             break
                         }
-                        echo "Attempt ${i+1}: Page is blank or crashed. Retrying..."
+                        echo "Attempt ${i+1}: Content not found (Page might be blank). Retrying..."
                     }
 
                     if (isHealthy) {
@@ -37,11 +37,11 @@ pipeline {
                         bat "docker stop ${old} || ver > nul"
                         bat "docker rm ${old} || ver > nul"
                     } else {
-                        // THIS IS YOUR GOAL: Keep the old site alive
-                        echo "FAILURE DETECTED: New version is blank. Keeping OLD version alive."
+                        // THIS IS YOUR GOAL: Keeping the working site online
+                        echo "PROTECTION TRIGGERED: New version is blank. Keeping OLD version alive."
                         bat "docker stop ${target} || ver > nul"
                         bat "docker rm ${target} || ver > nul"
-                        error "Deployment failed: Your old site is still safe."
+                        error "Deployment failed: Your old version is still running safely at http://localhost"
                     }
                 }
             }
