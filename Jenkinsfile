@@ -11,32 +11,30 @@ pipeline {
                     def port = blueRunning ? "8082" : "8081"
                     def old = blueRunning ? "app-v1" : "app-v2"
 
-                   // ... (start of your script remains the same)
+                    // CLEANUP: This prevents the 'Conflict' error you just saw
+                    echo "Removing existing ${target} if it exists..."
+                    bat "docker rm -f ${target} || ver > nul"
 
-bat "docker run -d --name ${target} -p ${port}:80 shopping-app:latest"
+                    // START NEW VERSION
+                    echo "Deploying ${target} on port ${port}..."
+                    bat "docker run -d --name ${target} -p ${port}:80 shopping-app:latest"
+                    
+                    // DEEP SCAN: Jenkins peeks inside the container to see if the UI rendered
+                    echo "DEEP SCAN: Checking if UI content exists inside the container..."
+                    sleep 10
+                    
+                    // We look for 'Special' inside the container's production files
+                    def check = bat(script: "docker exec ${target} grep -r \"Special\" /usr/share/nginx/html/assets/", returnStatus: true)
 
-echo "DEEP SCAN: Checking if UI components rendered in assets..."
-def isHealthy = false
-
-// We look inside the container's web folder for the word 'Special'
-// If you comment out the code, this word will not be indexed correctly in the assets
-def check = bat(script: "docker exec ${target} grep -r \"Special\" /usr/share/nginx/html/assets/", returnStatus: true)
-
-if (check == 0) {
-    echo "HEALTH CHECK PASSED: Component text found."
-    isHealthy = true
-}
-
-if (isHealthy) {
-    echo "SUCCESS: Switching traffic."
-    bat "docker stop ${old} || ver > nul"
-    bat "docker rm ${old} || ver > nul"
-} else {
-    echo "ROLLBACK: New version is a BLANK PAGE. Keeping old version."
-    bat "docker stop ${target} || ver > nul"
-    bat "docker rm ${target} || ver > nul"
-    error "Deployment blocked to prevent blank page!"
-}
+                    if (check == 0) {
+                        echo "HEALTH CHECK PASSED: New version is healthy. Switching traffic."
+                        bat "docker rm -f ${old} || ver > nul"
+                    } else {
+                        // THIS IS YOUR MAIN AIM
+                        echo "PROTECTION TRIGGERED: New version is blank/broken. Keeping OLD version alive."
+                        bat "docker rm -f ${target} || ver > nul"
+                        error "Deployment Blocked: To prevent a blank page, your working site was kept online."
+                    }
                 }
             }
         }
