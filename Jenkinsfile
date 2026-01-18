@@ -15,20 +15,25 @@ pipeline {
                     bat "docker rm -f ${target} || ver > nul"
 
                     echo "Deploying ${target} on port ${port}..."
-                    bat "docker run -d --name ${target} -p ${port}:80 shopping-app:latest"
+                    // FIX 1: Added --network so Nginx can find this container internally
+                    bat "docker run -d --name ${target} --network blue-green-net -p ${port}:80 shopping-app:latest"
                     
-                    sleep 10 // Give Nginx time to start
+                    sleep 10 
 
                     // 1. Check if Server is alive (Returns 200 OK)
                     def isAlive = bat(script: "curl -Is http://localhost:${port}", returnStdout: true).contains("200 OK")
                     
-                    // 2. DEEP SCAN: Look inside the container for the word 'Special'
-                    // This is what catches your Hero.jsx comment error!
+                    // 2. DEEP SCAN
                     def isContentValid = bat(script: "docker exec ${target} grep -r \"Special\" /usr/share/nginx/html/assets/", returnStatus: true) == 0
 
                     if (isAlive && isContentValid) {
-                        echo "HEALTH CHECK PASSED: Server is up and Source Code is valid!"
-                       
+                        echo "HEALTH CHECK PASSED: Switching Traffic to ${target}..."
+                        
+                        // FIX 2: These two lines tell nginx-proxy to switch from the old version to the new one
+                        bat "docker exec nginx-proxy sh -c \"echo 'server { listen 80; location / { proxy_pass http://${target}:80; } }' > /etc/nginx/conf.d/default.conf\""
+                        bat "docker exec nginx-proxy nginx -s reload"
+                        
+                        // FIX 3: Delete the old container ONLY after the new one is live on localhost
                         bat "docker rm -f ${old} || ver > nul"
                     } else {
                         echo "PROTECTION TRIGGERED: New version is broken. Keeping OLD version alive."
