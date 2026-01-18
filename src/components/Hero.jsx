@@ -23,7 +23,5 @@ const Hero = () => {
       </div>
       <img src={heroimage} alt="" className='w-full sm:w-1/2'/>
     </div>
-  );
-
-};
+ 
 export default Hero;
