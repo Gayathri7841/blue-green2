@@ -28,6 +28,8 @@ pipeline {
 
                     if (isAlive && isContentValid) {
                         echo "HEALTH CHECK PASSED: Server is up and Source Code is valid!"
+                        bat "docker exec nginx-proxy sh -c \"echo 'server { listen 80; location / { proxy_pass http://${target}:80; } }' > /etc/nginx/conf.d/default.conf\""
+                        bat "docker exec nginx-proxy nginx -s reload"
                         bat "docker rm -f ${old} || ver > nul"
                     } else {
                         echo "PROTECTION TRIGGERED: New version is broken. Keeping OLD version alive."
