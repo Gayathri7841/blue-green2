@@ -26,8 +26,6 @@ setBestSeller(bestProduct.slice(0,5))
 </div>
 
     </div>
-  )
-}
-
+  
 
 export default BestSeller
